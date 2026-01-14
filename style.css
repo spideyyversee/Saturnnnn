@@ -1,0 +1,57 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: #000;
+}
+
+#canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  z-index: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* --- PREVIEW CAMERA & IOT STYLE --- */
+.preview-container {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 240px; /* Ukuran Default Desktop */
+  height: 180px;
+  z-index: 9999;
+  border-radius: 10px;
+  border: 2px solid #00ffcc;
+  background-color: #000;
+  box-shadow: 0 0 15px #00ffcc;
+  overflow: hidden;
+  transform: scaleX(-1);
+}
+
+.input_video {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.6;
+}
+
+.output_canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+/* --- RESPONSIVE UNTUK HP (Layar < 600px) --- */
+@media (max-width: 600px) {
+  .preview-container {
+    width: 120px; /* Perkecil lebar */
+    height: 90px; /* Perkecil tinggi */
+    bottom: 10px;
+    left: 10px;
+    border-width: 1px; /* Tipiskan border */
+  }
+}

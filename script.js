@@ -15,7 +15,7 @@ let lovePoints = [];
 let imagePoints = [];
 let imageLoaded = false;
 
-// Variabel untuk skala responsif (Base Scale)
+// Variabel untuk skala responsif
 let currentTextScale = 2.0;
 let currentImageScale = 1.6;
 
@@ -28,29 +28,23 @@ canvasElement.height = window.innerHeight;
 previewCanvas.width = 240;
 previewCanvas.height = 180;
 
-// --- FUNGSI UPDATE SKALA (RESPONSIVE) ---
 function updateResponsiveScales() {
   const width = window.innerWidth;
-
   if (width < 600) {
-    // Mode HP: Base scale lebih kecil
     currentTextScale = 1.2;
     currentImageScale = 1.0;
   } else {
-    // Mode Laptop/PC: Base scale normal
     currentTextScale = 2.0;
     currentImageScale = 1.6;
   }
 }
 updateResponsiveScales();
 
-// --- TULISAN I LOVE U ---
 function generateLovePoints() {
   lovePoints = [];
   const tempCanvas = document.createElement("canvas");
   const tempCtx = tempCanvas.getContext("2d");
 
-  // Ukuran font dinamis
   const fontSize = Math.min(100, window.innerWidth * 0.15);
   const canvasWidth = fontSize * 8;
 
@@ -87,56 +81,71 @@ function generateLovePoints() {
   }
 }
 
-// --- PROSES GAMBAR PNG ---
+// --- PROSES GAMBAR (DIPERBAIKI) ---
 const targetImage = new Image();
+// [PENTING] Tambahkan ini agar tidak diblokir browser HP
+targetImage.crossOrigin = "Anonymous";
 targetImage.src = "img.png";
 
 targetImage.onload = function () {
-  generateImagePoints();
-  imageLoaded = true;
-  console.log("Gambar HD Loaded.");
+  // Tunggu sebentar untuk memastikan memori siap
+  setTimeout(() => {
+    generateImagePoints();
+  }, 100);
 };
 
 targetImage.onerror = function () {
-  console.error("Gagal memuat img.png.");
+  console.error("Gagal memuat img.png. Pastikan nama file benar.");
+  alert("Gagal memuat gambar img.png");
 };
 
 function generateImagePoints() {
-  if (!targetImage.src) return;
-  imagePoints = [];
-  const tempCanvas = document.createElement("canvas");
-  const tempCtx = tempCanvas.getContext("2d");
+  try {
+    if (!targetImage.src) return;
+    imagePoints = [];
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
 
-  const targetWidth = Math.min(300, window.innerWidth * 0.35);
-  const scaleFactor = targetWidth / targetImage.width;
-  const targetHeight = targetImage.height * scaleFactor;
+    // Batasi ukuran canvas sementara agar ringan di HP
+    const maxProcessWidth = window.innerWidth < 600 ? 150 : 300;
 
-  tempCanvas.width = targetWidth;
-  tempCanvas.height = targetHeight;
+    const scaleFactor = maxProcessWidth / targetImage.width;
+    const targetHeight = targetImage.height * scaleFactor;
 
-  tempCtx.drawImage(targetImage, 0, 0, targetWidth, targetHeight);
+    tempCanvas.width = maxProcessWidth;
+    tempCanvas.height = targetHeight;
 
-  const imageData = tempCtx.getImageData(0, 0, targetWidth, targetHeight);
-  const data = imageData.data;
+    tempCtx.drawImage(targetImage, 0, 0, maxProcessWidth, targetHeight);
 
-  const step = window.innerWidth < 600 ? 2 : 3;
+    const imageData = tempCtx.getImageData(0, 0, maxProcessWidth, targetHeight);
+    const data = imageData.data;
 
-  for (let y = 0; y < targetHeight; y += step) {
-    for (let x = 0; x < targetWidth; x += step) {
-      const index = (y * targetWidth + x) * 4;
-      const r = data[index];
-      const g = data[index + 1];
-      const b = data[index + 2];
-      const a = data[index + 3];
+    // Di HP gunakan step lebih besar (3) agar titik tidak terlalu padat/berat
+    const step = window.innerWidth < 600 ? 3 : 3;
 
-      if (a > 128) {
-        imagePoints.push({
-          x: x - targetWidth / 2,
-          y: y - targetHeight / 2,
-          color: `rgba(${r},${g},${b},${a / 255})`,
-        });
+    for (let y = 0; y < targetHeight; y += step) {
+      for (let x = 0; x < maxProcessWidth; x += step) {
+        const index = (y * maxProcessWidth + x) * 4;
+        const r = data[index];
+        const g = data[index + 1];
+        const b = data[index + 2];
+        const a = data[index + 3];
+
+        if (a > 128) {
+          imagePoints.push({
+            x: x - maxProcessWidth / 2,
+            y: y - targetHeight / 2,
+            color: `rgba(${r},${g},${b},${a / 255})`,
+          });
+        }
       }
     }
+    imageLoaded = true;
+    console.log("Gambar berhasil diproses. Total titik:", imagePoints.length);
+  } catch (e) {
+    console.error("Error memproses gambar:", e);
+    // Jika error (biasanya SecurityError), alert user
+    // alert("Gagal memproses pixel gambar. Coba gunakan Local Server.");
   }
 }
 
@@ -157,9 +166,7 @@ class Particle {
     this.size = Math.random() * 2 + 0.5;
     this.vx = (Math.random() - 0.5) * 10;
     this.vy = (Math.random() - 0.5) * 10;
-
     this.isRing = this.index % 10 < 6;
-
     if (this.isRing) {
       this.color = `hsl(${30 + Math.random() * 20}, 50%, ${
         50 + Math.random() * 30
@@ -179,43 +186,28 @@ class Particle {
 
   update() {
     let targetX, targetY;
-
     const yOffset = window.innerWidth < 600 ? 100 : 150;
-
-    // [BARU] Hitung Zoom Factor dari handScale (untuk semua mode)
-    // Batasi zoom minimal 0.5x dan maksimal 3.0x agar tidak hilang/pecah
     const zoomFactor = Math.max(0.5, Math.min(handScale, 3.0));
 
+    // [FIX] Cek imageLoaded DAN imagePoints.length
     if (handStatus === "pointing" && imageLoaded && imagePoints.length > 0) {
-      // --- MODE GAMBAR ---
       const point = imagePoints[this.index % imagePoints.length];
       this.imageColor = point.color;
-
-      // [BARU] Kalikan Base Scale dengan Zoom Factor
       const finalScale = currentImageScale * zoomFactor;
-
       targetX = handPos.x + point.x * finalScale;
       targetY = handPos.y + point.y * finalScale + yOffset;
-
       this.x += (targetX - this.x) * 0.35;
       this.y += (targetY - this.y) * 0.35;
     } else if (handStatus === "peace") {
-      // --- MODE I LOVE U ---
       if (lovePoints.length > 0) {
         const point = lovePoints[this.index % lovePoints.length];
-
-        // [BARU] Kalikan Base Scale dengan Zoom Factor
         const finalScale = currentTextScale * zoomFactor;
-
         targetX = handPos.x + point.x * finalScale;
         targetY = handPos.y + point.y * finalScale + yOffset;
-
         this.x += (targetX - this.x) * 0.3;
         this.y += (targetY - this.y) * 0.3;
       }
     } else if (handStatus === "fist") {
-      // --- MODE PLANET ---
-      // (Planet sudah pakai zoomFactor sendiri di logika sebelumnya)
       let scale = Math.max(0.6, Math.min(handScale, 2.5));
       if (window.innerWidth < 600) scale *= 0.6;
 
@@ -242,7 +234,6 @@ class Particle {
       this.x += (targetX - this.x) * 0.3;
       this.y += (targetY - this.y) * 0.3;
     } else {
-      // --- IDLE ---
       this.x += this.vx;
       this.y += this.vy;
       this.vx *= 0.96;
@@ -256,7 +247,9 @@ class Particle {
     let finalColor;
     let finalSize = this.size;
 
-    if (handStatus === "pointing") {
+    // [FIX] Jika Pointing TAPI gambar belum load/gagal, jangan pakai warna putih (imageColor default)
+    // Pakai warna planet saja supaya tidak terlihat glitch putih
+    if (handStatus === "pointing" && imageLoaded && imagePoints.length > 0) {
       finalColor = this.imageColor;
       finalSize = 1.5;
     } else if (handStatus === "peace") {
@@ -279,7 +272,11 @@ class Particle {
         Math.PI * 2
       );
       canvasCtx.fill();
-    } else if (handStatus === "pointing") {
+    } else if (
+      handStatus === "pointing" &&
+      imageLoaded &&
+      imagePoints.length > 0
+    ) {
       canvasCtx.fillStyle = "rgba(50, 50, 50, 0.8)";
       canvasCtx.beginPath();
       canvasCtx.arc(
@@ -316,13 +313,11 @@ function onResults(results) {
       landmarks[12].y > landmarks[9].y &&
       landmarks[16].y > landmarks[13].y &&
       landmarks[20].y > landmarks[17].y;
-
     const isPeace =
       landmarks[8].y < landmarks[6].y &&
       landmarks[12].y < landmarks[10].y &&
       landmarks[16].y > landmarks[14].y &&
       landmarks[20].y > landmarks[18].y;
-
     const isPointing =
       landmarks[8].y < landmarks[6].y &&
       landmarks[12].y > landmarks[10].y &&
@@ -337,7 +332,11 @@ function onResults(results) {
       ? "fist"
       : "idle";
 
-    if (currentStatus === "pointing" || currentStatus === "peace") {
+    // Hanya matikan lighter jika gambar BENAR-BENAR ada
+    if (
+      (currentStatus === "pointing" && imageLoaded && imagePoints.length > 0) ||
+      currentStatus === "peace"
+    ) {
       canvasCtx.globalCompositeOperation = "source-over";
     } else {
       canvasCtx.globalCompositeOperation = "lighter";
@@ -361,12 +360,10 @@ function onResults(results) {
       handPos.y = landmarks[9].y * canvasElement.height;
     }
 
-    // --- LOGIKA ZOOM ---
     let dx = landmarks[0].x - landmarks[9].x;
     let dy = landmarks[0].y - landmarks[9].y;
     let dist = Math.sqrt(dx * dx + dy * dy);
     let targetScale = dist * 4;
-    // Nilai handScale ini sekarang dipakai untuk SEMUA mode (Planet, Gambar, Teks)
     handScale += (targetScale - handScale) * 0.1;
 
     if (lastStatus !== currentStatus && currentStatus !== "idle") {
